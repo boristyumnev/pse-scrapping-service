@@ -3,6 +3,7 @@
 from datetime import datetime
 from logging import getLogger
 from typing import Optional, Sequence
+from asyncio import Event
 
 from quart.json import jsonify
 from quart import Quart, Response
@@ -38,7 +39,9 @@ def _render_single_response(usage: UsageValue, update_timestamp: datetime) -> Re
     )
 
 
-async def start_webservice(cache: InMemoryWebCache, params: WebParams) -> None:
+async def start_webservice(
+    cache: InMemoryWebCache, params: WebParams, terminate_event: Event
+) -> None:
     _logger.info(f"Starting web server {params}")
     app: Quart = Quart(__name__)
 
@@ -65,4 +68,8 @@ async def start_webservice(cache: InMemoryWebCache, params: WebParams) -> None:
             return _render_status_response("NO_DATA")
         return _render_single_response(latest, energy_usage.update_timestamp)
 
-    await app.run_task(host=params.bind_ip_address, port=params.bind_port)
+    await app.run_task(
+        host=params.bind_ip_address,
+        port=params.bind_port,
+        shutdown_trigger=terminate_event.wait,
+    )

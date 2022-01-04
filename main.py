@@ -2,15 +2,20 @@
 
 import asyncio
 import logging
+from asyncio.events import AbstractEventLoop
+from asyncio.tasks import Task
 from logging.handlers import RotatingFileHandler
 from os import getenv
 from pathlib import Path
-from typing import Optional
+from signal import SIGHUP, SIGINT, SIGTERM
+from typing import Optional, Sequence
 
 from app.models import ScapingParams, WebParams
+from app.scraping import loop_refresh
 from app.storage import InMemoryWebCache
 from app.web import start_webservice
-from app.scraping import loop_refresh
+
+_logger = logging.getLogger(__name__)
 
 
 def _env(key: str) -> str:
@@ -42,14 +47,12 @@ def _start_logging() -> None:
     )
 
 
-def _create_cache() -> InMemoryWebCache:
-    return InMemoryWebCache(
+async def _run_server() -> None:
+    cache: InMemoryWebCache = InMemoryWebCache(
         data_folder=Path(_env("DATA_FOLDER")),
     )
-
-
-async def _run_data_refresh(cache: InMemoryWebCache) -> None:
-    await loop_refresh(
+    cache.restore()
+    refresh_coro = loop_refresh(
         cache=cache,
         scraping_params=ScapingParams(
             pse_username=_env("PSE_USERNAME"),
@@ -57,27 +60,41 @@ async def _run_data_refresh(cache: InMemoryWebCache) -> None:
         ),
         force_first_refresh=False,
     )
-
-
-async def _run_web_service(cache: InMemoryWebCache) -> None:
-    await start_webservice(
+    terminate_event = asyncio.Event()
+    webservice_coro = start_webservice(
         cache=cache,
         params=WebParams(
             bind_ip_address=_env("BIND_IP_ADDRESS"),
             bind_port=_env("BIND_PORT"),
         ),
+        terminate_event=terminate_event,
     )
+    try:
+        await asyncio.gather(refresh_coro, webservice_coro)
+    except asyncio.CancelledError:
+        _logger.info("Stopping the loop")
+        terminate_event.set()
+        asyncio.get_running_loop().stop()
 
 
-async def main() -> None:
+def _shutdown(loop: AbstractEventLoop) -> None:
+    tasks: Sequence[Task] = asyncio.all_tasks(loop)
+    _logger.info(f"Killing {len(tasks)} tasks")
+    for task in tasks:
+        task.cancel()
+
+
+def main() -> None:
     _start_logging()
-    cache: InMemoryWebCache = _create_cache()
-    cache.restore()
-    await asyncio.gather(
-        _run_data_refresh(cache),
-        _run_web_service(cache),
-    )
+
+    loop: AbstractEventLoop = asyncio.new_event_loop()
+    loop.create_task(_run_server())
+    for signum in [SIGTERM, SIGINT, SIGHUP]:
+        loop.add_signal_handler(signum, _shutdown, loop)
+    _logger.info("Running")
+    loop.run_forever()
+    _logger.info("Terminated")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

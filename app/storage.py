@@ -51,6 +51,8 @@ class InMemoryWebCache:
             self._expire_at = datetime.now() + self._expiration_period
             self._energy_usage = energy_usage
 
+            self._data_folder.mkdir(parents=True, exist_ok=True)
+
             with self._get_storage_path().open(mode="w", encoding="utf-8") as f:
                 json.dump(
                     obj={
