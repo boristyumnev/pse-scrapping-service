@@ -1,6 +1,7 @@
 "Entry point for tha app"
 
 import asyncio
+from datetime import timedelta
 import logging
 from asyncio.events import AbstractEventLoop
 from asyncio.tasks import Task
@@ -48,33 +49,38 @@ def _start_logging() -> None:
 
 
 async def _run_server() -> None:
-    cache: InMemoryWebCache = InMemoryWebCache(
-        data_folder=Path(_env("DATA_FOLDER")),
-    )
-    cache.restore()
-    refresh_coro = loop_refresh(
-        cache=cache,
-        scraping_params=ScapingParams(
-            pse_username=_env("PSE_USERNAME"),
-            pse_password=_env("PSE_PASSWORD"),
-        ),
-        force_first_refresh=False,
-    )
     terminate_event = asyncio.Event()
-    webservice_coro = start_webservice(
-        cache=cache,
-        params=WebParams(
-            bind_ip_address=_env("BIND_IP_ADDRESS"),
-            bind_port=_env("BIND_PORT"),
-        ),
-        terminate_event=terminate_event,
-    )
     try:
+        cache: InMemoryWebCache = InMemoryWebCache(
+            data_folder=Path(_env("DATA_FOLDER")),
+            expiration_period=timedelta(hours=int(_env("CACHE_DURATION_HOURS"))),
+        )
+        cache.restore()
+        refresh_coro = loop_refresh(
+            cache=cache,
+            scraping_params=ScapingParams(
+                pse_username=_env("PSE_USERNAME"),
+                pse_password=_env("PSE_PASSWORD"),
+            ),
+            force_first_refresh=False,
+        )
+        webservice_coro = start_webservice(
+            cache=cache,
+            params=WebParams(
+                bind_ip_address=_env("BIND_IP_ADDRESS"),
+                bind_port=_env("BIND_PORT"),
+            ),
+            terminate_event=terminate_event,
+        )
         await asyncio.gather(refresh_coro, webservice_coro)
     except asyncio.CancelledError:
-        _logger.info("Stopping the loop")
-        terminate_event.set()
-        asyncio.get_running_loop().stop()
+        pass
+    except Exception:  # pylint: disable=broad-except
+        _logger.exception("Service execution failure")
+
+    _logger.info("Stopping the loop")
+    terminate_event.set()
+    asyncio.get_running_loop().stop()
 
 
 def _shutdown(loop: AbstractEventLoop) -> None:

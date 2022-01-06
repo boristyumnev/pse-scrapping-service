@@ -182,7 +182,7 @@ async def _refresh_cache_data(
     try:
         data: EnergyUsage = await _get_latest_usage_data(scraping_params)
         cache.update(data)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         _logger.exception("Failed to scrape data from the website")
 
 

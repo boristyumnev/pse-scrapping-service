@@ -33,5 +33,6 @@ ENV DATA_FOLDER="/service/data"
 ENV LOGS_FOLDER="/service/logs"
 ENV BIND_IP_ADDRESS="0.0.0.0"
 ENV BIND_PORT="${BIND_PORT}"
+ENV CACHE_DURATION_HOURS=24
 
 ENTRYPOINT ["python", "main.py"]
