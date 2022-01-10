@@ -27,7 +27,7 @@ def _env(key: str) -> str:
 
 
 def _start_logging() -> None:
-    folder_path: Path = Path(_env("LOGS_FOLDER"))
+    folder_path: Path = Path(_env("DATA_FOLDER")).joinpath("logs")
     folder_path.mkdir(parents=True, exist_ok=True)
 
     file_path: Path = folder_path.joinpath("pse_scraping_service.log")
@@ -52,7 +52,7 @@ async def _run_server() -> None:
     terminate_event = asyncio.Event()
     try:
         cache: InMemoryWebCache = InMemoryWebCache(
-            data_folder=Path(_env("DATA_FOLDER")),
+            data_folder=Path(_env("DATA_FOLDER")).joinpath("data"),
             expiration_period=timedelta(hours=int(_env("CACHE_DURATION_HOURS"))),
         )
         cache.restore()

@@ -43,7 +43,7 @@ async def download_usage_zipped_csv(
     username: str, password: str
 ) -> AsyncGenerator[Path, None]:
     async with async_playwright() as playwright:
-        browser: Browser = await playwright.firefox.launch(headless=True)
+        browser: Browser = await playwright.chromium.launch(headless=True)
         page: Page = await browser.new_page(accept_downloads=True)
         await _login(page, username, password=password)
         file_path: Path = await _download_usage_zipped_csv(page)

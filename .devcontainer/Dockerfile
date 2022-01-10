@@ -11,6 +11,6 @@ RUN apt-get install -y python3.10 python3.10-distutils && \
 
 # installing pylint and playwright
 RUN python3 -m pip install --upgrade playwright pylint black
-RUN python3 -m playwright install firefox
+RUN python3 -m playwright install
 
 COPY .bashrc /root/.bashrc
